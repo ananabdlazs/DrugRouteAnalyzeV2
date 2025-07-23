@@ -1,0 +1,2441 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisis Rute Narkotika</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs@3.10.0/pptxgen.bundle.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 350px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .sidebar.collapsed {
+            transform: translateX(-330px);
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.3s ease;
+        }
+        .main-content.expanded {
+            margin-left: -330px;
+        }
+        .map-container {
+            height: 35%;
+            border-bottom: 1px solid #ddd;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .network-container {
+            height: 65%;
+            background-color: white;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .network-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+        }
+        .network-legend {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        h1, h2, h3 {
+            color: #ecf0f1;
+            margin-top: 0;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .tab-btn {
+            padding: 10px 15px;
+            background-color: #34495e;
+            border: none;
+            color: white;
+            cursor: pointer;
+            flex: 1;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        .tab-btn:hover {
+            background-color: #2c3e50;
+        }
+        .tab-btn.active {
+            background-color: #1abc9c;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+        button {
+            background-color: #1abc9c;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #16a085;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        .edit-btn {
+            background-color: #3498db;
+        }
+        .delete-btn {
+            background-color: #e74c3c;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .data-table th {
+            background-color: #34495e;
+            color: white;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #3d566e;
+        }
+        .data-table tr:hover {
+            background-color: #4b6584;
+        }
+        .network-graph {
+            width: 100%;
+            height: 100%;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+        .database-group {
+            margin-bottom: 20px;
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .database-group h3 {
+            margin-bottom: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .database-group h3 i {
+            transition: transform 0.3s;
+        }
+        .database-group.collapsed .group-content {
+            display: none;
+        }
+        .database-group.collapsed h3 i {
+            transform: rotate(-90deg);
+        }
+        .location-badge {
+            display: inline-block;
+            background-color: #1abc9c;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .toggle-sidebar {
+            position: absolute;
+            right: -15px;
+            top: 10px;
+            background-color: #2c3e50;
+            border: 2px solid #ecf0f1;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .toggle-sidebar i {
+            color: white;
+        }
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .export-btn {
+            background-color: #9b59b6;
+        }
+        .edit-form {
+            display: none;
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .edit-form.active {
+            display: block;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .error-message {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        #network-graph {
+            width: 100%;
+            height: calc(100% - 20px);
+            border: 1px solid #ddd;
+        }
+        .vis-tooltip {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 12px;
+            max-width: 300px;
+        }
+        .vis-tooltip h4 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+        }
+        .vis-tooltip p {
+            margin: 3px 0;
+        }
+        .network-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            padding: 0 10px;
+            flex-wrap: wrap;
+        }
+        .network-controls button {
+            background-color: #3498db;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        .network-controls button:hover {
+            background-color: #2980b9;
+        }
+        .network-visualization-title {
+            padding: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+            color: black;
+        }
+        .visualization-container {
+            display: flex;
+            height: 100%;
+        }
+        .visualization-panel {
+            flex: 1;
+            padding: 10px;
+            overflow: auto;
+        }
+        .visualization-main {
+            flex: 3;
+            height: 100%;
+        }
+        .leaflet-tooltip.origin-label {
+            background-color: rgba(231, 76, 60, 0.8);
+            color: white;
+            border: none;
+            box-shadow: none;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .info-box {
+            background-color: #34495e;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #1abc9c;
+            border-bottom: 1px solid #1abc9c;
+            padding-bottom: 5px;
+        }
+        .info-item {
+            margin-bottom: 10px;
+        }
+        .info-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1abc9c;
+        }
+        .info-label {
+            font-size: 14px;
+            color: #ecf0f1;
+        }
+        .info-subtext {
+            font-size: 12px;
+            color: #bdc3c7;
+            margin-top: 3px;
+        }
+        .modus-description {
+            font-size: 12px;
+            color: #bdc3c7;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        .node-count {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+        .vis-node.large-node {
+            border-width: 3px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .database-filter {
+            margin-bottom: 15px;
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .database-filter input, .database-filter select {
+            margin-bottom: 10px;
+        }
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .filter-row .form-group {
+            flex: 1;
+        }
+        .json-import-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        .json-import-input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <div class="toggle-sidebar" onclick="toggleSidebar()">
+                <i class="fas fa-chevron-left" id="sidebar-icon"></i>
+            </div>
+            <h1><i class="fas fa-route"></i> Analisis Rute Narkotika</h1>
+            <p>Analisis dan visualisasi rute penyelundupan narkotika global berdasarkan laporan berita.</p>
+            
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="openTab('arrest-tab')"><i class="fas fa-handcuffs"></i> Data Penangkapan</button>
+                    <button class="tab-btn" onclick="openTab('database-tab')"><i class="fas fa-database"></i> Database</button>
+                </div>
+                
+                <div id="arrest-tab" class="tab-content active">
+                    <div class="info-box">
+                        <h3>Statistik Narkotika Indonesia</h3>
+                        <div class="info-item">
+                            <div class="info-value" id="imported-drugs-count">0</div>
+                            <div class="info-label">Narkotika dengan Tujuan Indonesia</div>
+                            <div class="info-subtext" id="imported-drugs-cases">0 kasus</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-value" id="domestic-drugs-count">0</div>
+                            <div class="info-label">Peredaran Narkotika Dalam Negeri</div>
+                            <div class="info-subtext" id="domestic-drugs-cases">0 kasus</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-value" id="drugs-pieces-count">0</div>
+                            <div class="info-label">Total Bungkus/Butir Narkotika</div>
+                            <div class="info-subtext" id="drugs-pieces-cases">0 kasus</div>
+                        </div>
+                    </div>
+                    
+                    <h2>Tambah Data Penangkapan Baru</h2>
+                    <div class="form-group">
+                        <label for="news-link">URL Artikel Berita:</label>
+                        <input type="url" id="news-link" placeholder="https://example.com/news/article">
+                    </div>
+                    <div class="form-group">
+                        <label for="arrest-date">Tanggal Penangkapan:</label>
+                        <input type="date" id="arrest-date">
+                    </div>
+                    <div class="form-group">
+                        <label for="drug-type">Jenis Narkotika:</label>
+                        <select id="drug-type">
+                            <option value="cocaine">Kokain</option>
+                            <option value="heroin">Heroin</option>
+                            <option value="methamphetamine">Metamfetamin</option>
+                            <option value="marijuana">Ganja</option>
+                            <option value="fentanyl">Fentanil</option>
+                            <option value="other">Lainnya</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="suspect-name">Nama Tersangka:</label>
+                        <input type="text" id="suspect-name" placeholder="Nama tersangka">
+                    </div>
+                    <div class="form-group">
+                        <label for="drug-weight">Berat Narkotika:</label>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <input type="number" id="drug-weight-kg" placeholder="Kilogram" style="flex: 1;">
+                            <input type="number" id="drug-weight-g" placeholder="Gram" style="flex: 1;">
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="number" id="drug-weight-pcs" placeholder="Bungkus/Butir" style="flex: 1;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="agency">Aparatur Penegak Hukum:</label>
+                        <input type="text" id="agency" placeholder="Contoh: BNN, Polri, Bea Cukai">
+                    </div>
+                    <div class="form-group">
+                        <label for="modus">Modus Pengiriman:</label>
+                        <select id="modus" onchange="updateModusDescription()">
+                            <option value="udara">Udara (Pesawat)</option>
+                            <option value="laut">Laut (Kapal)</option>
+                            <option value="darat">Darat (Truk, Mobil)</option>
+                            <option value="pos">Pos/Paket</option>
+                            <option value="penumpang">Penumpang (Body Carrier)</option>
+                            <option value="other">Lainnya</option>
+                        </select>
+                        <div id="modus-description" class="modus-description">
+                            Contoh: Dimasukkan ke dalam tas, dibungkus dengan pakaian, atau disembunyikan di barang lain
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="modus-detail">Detail Modus Pengiriman:</label>
+                        <textarea id="modus-detail" placeholder="Deskripsi detail cara penyelundupan, contoh: Dimasukkan ke dalam koper dengan lapisan palsu, disembunyikan dalam kemasan makanan, dll."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="nationality">Warga Negara Tersangka:</label>
+                        <input type="text" id="nationality" placeholder="Kewarganegaraan tersangka">
+                    </div>
+                    <div class="form-group">
+                        <label for="origin-type">Jenis Asal:</label>
+                        <select id="origin-type">
+                            <option value="country">Negara</option>
+                            <option value="region">Daerah</option>
+                            <option value="address">Alamat</option>
+                            <option value="airport">Bandara</option>
+                            <option value="port">Pelabuhan</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="origin">Asal:</label>
+                        <input type="text" id="origin" placeholder="Negara, daerah, alamat, bandara, atau pelabuhan">
+                        <div id="origin-error" class="error-message"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="origin-description">Deskripsi Asal (opsional):</label>
+                        <textarea id="origin-description" placeholder="Deskripsi tambahan tentang asal narkotika"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="destination">Tujuan:</label>
+                        <input type="text" id="destination" placeholder="Tujuan pengiriman">
+                        <div id="destination-error" class="error-message"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="destination-description">Deskripsi Tujuan (opsional):</label>
+                        <textarea id="destination-description" placeholder="Deskripsi tambahan tentang tujuan narkotika"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="arrest-location">Lokasi Penangkapan:</label>
+                        <input type="text" id="arrest-location" placeholder="Lokasi penangkapan terjadi">
+                        <div id="arrest-location-error" class="error-message"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="arrest-location-description">Deskripsi Lokasi Penangkapan (opsional):</label>
+                        <textarea id="arrest-location-description" placeholder="Deskripsi tambahan tentang lokasi penangkapan"></textarea>
+                    </div>
+                    <button onclick="addArrestData()" id="add-data-btn"><i class="fas fa-plus"></i> Tambah Data</button>
+                    
+                    <h2 style="margin-top: 30px;">Penangkapan Terkini</h2>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Jenis Narkotika</th>
+                                <th>Berat</th>
+                                <th>Bungkus/Butir</th>
+                                <th>Modus</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="arrests-table">
+                            <!-- Data akan dimasukkan di sini -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="database-tab" class="tab-content">
+                    <h2>Analisis Database</h2>
+                    <p>Data dikelompokkan berdasarkan asal, tujuan, dan lokasi penangkapan.</p>
+                    
+                    <div class="export-buttons">
+                        <button class="export-btn" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> Export ke Excel</button>
+                        <button class="export-btn" onclick="exportToPPT()"><i class="fas fa-file-powerpoint"></i> Export ke PPT</button>
+                        <button class="export-btn" onclick="exportToJSON()"><i class="fas fa-download"></i> Backup Data JSON</button>
+                        <button class="export-btn json-import-btn">
+                            <i class="fas fa-upload"></i> Import Data JSON
+                            <input type="file" id="json-import-input" class="json-import-input" accept=".json" onchange="handleJSONImport(event)">
+                        </button>
+                    </div>
+                    
+                    <div class="database-filter">
+                        <h3>Filter Data</h3>
+                        <div class="filter-row">
+                            <div class="form-group">
+                                <label for="filter-drug-type">Jenis Narkotika:</label>
+                                <select id="filter-drug-type">
+                                    <option value="">Semua Jenis</option>
+                                    <option value="cocaine">Kokain</option>
+                                    <option value="heroin">Heroin</option>
+                                    <option value="methamphetamine">Metamfetamin</option>
+                                    <option value="marijuana">Ganja</option>
+                                    <option value="fentanyl">Fentanil</option>
+                                    <option value="other">Lainnya</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="filter-origin">Asal:</label>
+                                <input type="text" id="filter-origin" placeholder="Filter berdasarkan asal">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="form-group">
+                                <label for="filter-destination">Tujuan:</label>
+                                <input type="text" id="filter-destination" placeholder="Filter berdasarkan tujuan">
+                            </div>
+                            <div class="form-group">
+                                <label for="filter-arrest-location">Lokasi Penangkapan:</label>
+                                <input type="text" id="filter-arrest-location" placeholder="Filter berdasarkan lokasi">
+                            </div>
+                        </div>
+                        <button onclick="applyFilters()"><i class="fas fa-filter"></i> Terapkan Filter</button>
+                        <button onclick="resetFilters()" style="background-color: #e74c3c;"><i class="fas fa-times"></i> Reset Filter</button>
+                    </div>
+                    
+                    <div id="database-groups">
+                        <!-- Kelompok database akan dimasukkan di sini -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content" id="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            <div class="network-container">
+                <div class="network-header">
+                    <h3 style="color: black;">Analisis Jaringan Narkotika</h3>
+                    <div class="network-legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #e74c3c;"></div>
+                            <span>Asal</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #2ecc71;"></div>
+                            <span>Tujuan</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #f1c40f;"></div>
+                            <span>Penangkapan</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #3498db;"></div>
+                            <span>Rute Narkotika</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #9b59b6;"></div>
+                            <span>Rute Penangkapan</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="network-controls">
+                    <button onclick="resetNetworkView()"><i class="fas fa-sync-alt"></i> Reset View</button>
+                    <button onclick="togglePhysics()"><i class="fas fa-magnet"></i> Toggle Fisika</button>
+                    <button onclick="exportNetworkImage()"><i class="fas fa-download"></i> Export Gambar</button>
+                </div>
+                <div class="visualization-container">
+                    <div class="visualization-main">
+                        <div class="network-graph">
+                            <div id="network-graph"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Inisialisasi peta dalam Bahasa Indonesia
+        const map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> kontributor',
+            maxZoom: 18,
+            minZoom: 2
+        }).addTo(map);
+
+        // Ikon kustom dengan klasifikasi warna baru
+        const originIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const destinationIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const arrestIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        // Database koordinat untuk lokasi umum
+        const locationCoordinates = {
+            // Negara
+            'indonesia': [-0.7893, 113.9213],
+            'kolombia': [4.5709, -74.2973],
+            'afghanistan': [34.5553, 69.2075],
+            'myanmar': [16.8409, 96.1735],
+            'amerika serikat': [39.8283, -98.5795],
+            'inggris': [51.5074, -0.1278],
+            'australia': [-25.2744, 133.7751],
+            'malaysia': [4.2105, 101.9758],
+            'singapura': [1.3521, 103.8198],
+            'thailand': [15.8700, 100.9925],
+            'filipina': [12.8797, 121.7740],
+            'vietnam': [14.0583, 108.2772],
+            'china': [35.8617, 104.1954],
+            'jepang': [36.2048, 138.2529],
+            'korea selatan': [35.9078, 127.7669],
+            'india': [20.5937, 78.9629],
+            'pakistan': [30.3753, 69.3451],
+            'iran': [32.4279, 53.6880],
+            'turki': [38.9637, 35.2433],
+            'brazil': [-14.2350, -51.9253],
+            'mexico': [23.6345, -102.5528],
+            'peru': [-9.1900, -75.0152],
+            'belanda': [52.1326, 5.2913],
+            'jerman': [51.1657, 10.4515],
+            'perancis': [46.2276, 2.2137],
+            'spanyol': [40.4637, -3.7492],
+            'italia': [41.8719, 12.5674],
+            'rusia': [61.5240, 105.3188],
+            'arab saudi': [23.8859, 45.0792],
+            'uni emirat arab': [23.4241, 53.8478],
+            
+            // Kota di Indonesia
+            'jakarta': [-6.2088, 106.8456],
+            'surabaya': [-7.2575, 112.7521],
+            'bandung': [-6.9175, 107.6191],
+            'medan': [3.5952, 98.6722],
+            'semarang': [-6.9667, 110.4167],
+            'makassar': [-5.1477, 119.4327],
+            'denpasar': [-8.6705, 115.2126],
+            'batam': [1.0456, 104.0305],
+            'pekanbaru': [0.5071, 101.4478],
+            'palembang': [-2.9909, 104.7565],
+            
+            // Bandara Internasional
+            'bandara soekarno-hatta': [-6.1256, 106.6558],
+            'bandara ngurah rai': [-8.7482, 115.1672],
+            'bandara juanda': [-7.3797, 112.7869],
+            'bandara kualanamu': [3.6426, 98.8854],
+            'bandara changi': [1.3644, 103.9915],
+            'bandara klia': [2.7456, 101.7099],
+            'bandara suvarnabhumi': [13.6811, 100.7473],
+            'bandara heathrow': [51.4700, -0.4543],
+            'bandara jfk': [40.6413, -73.7781],
+            'bandara dubai': [25.2532, 55.3657],
+            
+            // Pelabuhan
+            'pelabuhan tanjung priok': [-6.1025, 106.8794],
+            'pelabuhan tanjung perak': [-7.2106, 112.7292],
+            'pelabuhan belawan': [3.7956, 98.6722],
+            'pelabuhan makassar': [-5.1275, 119.4136],
+            'pelabuhan singapura': [1.2650, 103.8200],
+            'pelabuhan klang': [2.9997, 101.3925],
+            'pelabuhan rotterdam': [51.8850, 4.2697],
+            'pelabuhan los angeles': [33.7167, -118.2667],
+            
+            // Kota Internasional
+            'new york': [40.7128, -74.0060],
+            'los angeles': [34.0522, -118.2437],
+            'london': [51.5074, -0.1278],
+            'paris': [48.8566, 2.3522],
+            'tokyo': [35.6762, 139.6503],
+            'beijing': [39.9042, 116.4074],
+            'moscow': [55.7558, 37.6173],
+            'dubai': [25.2048, 55.2708],
+            'hong kong': [22.3193, 114.1694],
+            'sydney': [-33.8688, 151.2093],
+            'miami': [25.7617, -80.1918]
+        };
+
+        // Fungsi untuk mendapatkan koordinat berdasarkan nama lokasi
+        async function getCoordinates(locationName, type = '') {
+            if (!locationName) return [0, 0];
+            
+            const lowerName = locationName.toLowerCase().trim();
+            
+            // 1. Cek di database lokal pertama
+            if (locationCoordinates[lowerName]) {
+                return locationCoordinates[lowerName];
+            }
+            
+            // 2. Cari kecocokan parsial
+            for (const [key, coords] of Object.entries(locationCoordinates)) {
+                if (lowerName.includes(key) || key.includes(lowerName)) {
+                    return coords;
+                }
+            }
+            
+            // 3. Coba geocoding Nominatim (OpenStreetMap)
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationName)}&limit=1`);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    
+                    // Simpan ke database lokal untuk penggunaan berikutnya
+                    locationCoordinates[lowerName] = [lat, lon];
+                    return [lat, lon];
+                }
+            } catch (error) {
+                console.error('Geocoding error:', error);
+            }
+            
+            // 4. Jika semua gagal, kembalikan koordinat acak berdasarkan jenis lokasi
+            let fallbackCoord;
+            switch(type) {
+                case 'origin':
+                    fallbackCoord = [10 + (Math.random() * 20), -30 + (Math.random() * 60)];
+                    break;
+                case 'destination':
+                    fallbackCoord = [30 + (Math.random() * 20), 30 + (Math.random() * 60)];
+                    break;
+                case 'arrest':
+                    fallbackCoord = [20 + (Math.random() * 20), -100 + (Math.random() * 200)];
+                    break;
+                default:
+                    fallbackCoord = [20 + (Math.random() * 40 - 20), 0 + (Math.random() * 80 - 40)];
+            }
+            
+            console.warn(`Lokasi "${locationName}" tidak ditemukan, menggunakan koordinat fallback`);
+            return fallbackCoord;
+        }
+
+        // Database untuk menyimpan data penangkapan
+        let arrestsDatabase = [];
+        let editingId = null;
+        let currentFilters = {};
+        
+        // Data contoh untuk demonstrasi
+        const sampleData = [
+            {
+                id: 1,
+                newsLink: "https://example.com/news/cocaine-bust",
+                date: "2023-05-15",
+                drugType: "cocaine",
+                suspectName: "Juan Perez, Maria Gomez",
+                weightKg: 50,
+                weightG: 0,
+                weightPcs: 0,
+                agency: "BNN",
+                modus: "laut",
+                modusDetail: "Disembunyikan dalam kontainer barang elektronik",
+                nationality: "Kolombia",
+                originType: "country",
+                origin: "Kolombia",
+                originDescription: "Dikirim dari wilayah produksi kokain di Kolombia",
+                destination: "Amerika Serikat",
+                destinationDescription: "Tujuan akhir adalah pasar gelap di Miami",
+                arrestLocation: "Miami, Florida",
+                arrestLocationDescription: "Ditangkap di bandara saat mencoba mengambil paket"
+            },
+            {
+                id: 2,
+                newsLink: "https://example.com/news/heroin-seizure",
+                date: "2023-06-20",
+                drugType: "heroin",
+                suspectName: "Ahmed Khan",
+                weightKg: 10,
+                weightG: 500,
+                weightPcs: 0,
+                agency: "Polri",
+                modus: "udara",
+                modusDetail: "Dimasukkan dalam koper dengan lapisan palsu",
+                nationality: "Afghanistan",
+                originType: "country",
+                origin: "Afghanistan",
+                originDescription: "Dikirim dari wilayah produksi opium di Afghanistan",
+                destination: "Inggris",
+                destinationDescription: "Tujuan pasar gelap di London",
+                arrestLocation: "London, UK",
+                arrestLocationDescription: "Ditangkap di bandara Heathrow"
+            },
+            {
+                id: 3,
+                newsLink: "https://example.com/news/meth-seizure",
+                date: "2023-04-10",
+                drugType: "methamphetamine",
+                suspectName: "Zhang Wei",
+                weightKg: 5,
+                weightG: 0,
+                weightPcs: 2000,
+                agency: "Bea Cukai",
+                modus: "pos",
+                modusDetail: "Dikirim melalui paket dengan label 'suplemen makanan'",
+                nationality: "China",
+                originType: "country",
+                origin: "Myanmar",
+                originDescription: "Dikirim dari laboratorium di perbatasan Myanmar",
+                destination: "Australia",
+                destinationDescription: "Tujuan pasar gelap di Sydney",
+                arrestLocation: "Sydney, Australia",
+                arrestLocationDescription: "Ditangkap di pusat distribusi pos"
+            },
+            {
+                id: 4,
+                newsLink: "https://example.com/news/marijuana-bust",
+                date: "2023-07-22",
+                drugType: "marijuana",
+                suspectName: "Lee Chang",
+                weightKg: 100,
+                weightG: 0,
+                weightPcs: 50,
+                agency: "Polri",
+                modus: "darat",
+                modusDetail: "Disembunyikan dalam kompartemen rahasia truk pengangkut sayur",
+                nationality: "Malaysia",
+                originType: "country",
+                origin: "Malaysia",
+                originDescription: "Dikirim dari perkebunan ganja ilegal di perbatasan Malaysia",
+                destination: "Indonesia",
+                destinationDescription: "Tujuan pasar gelap di Jakarta",
+                arrestLocation: "Jakarta, Indonesia",
+                arrestLocationDescription: "Ditangkap di pos pemeriksaan jalan tol"
+            },
+            {
+                id: 5,
+                newsLink: "https://example.com/news/fentanyl-seizure",
+                date: "2023-03-05",
+                drugType: "fentanyl",
+                suspectName: "James Wilson",
+                weightKg: 2,
+                weightG: 500,
+                weightPcs: 0,
+                agency: "BNN",
+                modus: "pos",
+                modusDetail: "Dikirim dalam kemasan surat biasa dengan lapisan timah",
+                nationality: "Amerika Serikat",
+                originType: "country",
+                origin: "China",
+                originDescription: "Dikirim dari laboratorium di China",
+                destination: "Amerika Serikat",
+                destinationDescription: "Tujuan pasar gelap di Los Angeles",
+                arrestLocation: "Los Angeles, USA",
+                arrestLocationDescription: "Ditangkap di kantor pos"
+            }
+        ];
+        
+        // Coba muat data dari localStorage
+        function loadDatabase() {
+            const savedData = localStorage.getItem('arrestsDatabase');
+            if (savedData) {
+                arrestsDatabase = JSON.parse(savedData);
+            } else {
+                arrestsDatabase = [...sampleData];
+            }
+        }
+        
+        // Simpan data ke localStorage
+        function saveDatabase() {
+            localStorage.setItem('arrestsDatabase', JSON.stringify(arrestsDatabase));
+        }
+        
+        // Muat data saat halaman dimuat
+        loadDatabase();
+        
+        // Fungsi untuk memperbarui statistik
+        function updateStatistics() {
+            // Hitung narkotika dengan tujuan Indonesia
+            const importedCases = arrestsDatabase.filter(arrest => {
+                return arrest.destination.toLowerCase().includes('indonesia') || 
+                       isIndonesianLocation(arrest.destination);
+            });
+            
+            const importedDrugs = importedCases.reduce((sum, arrest) => sum + arrest.weightKg * 1000 + arrest.weightG, 0);
+            const importedPieces = importedCases.reduce((sum, arrest) => sum + (arrest.weightPcs || 0), 0);
+            
+            // Hitung peredaran dalam negeri
+            const domesticCases = arrestsDatabase.filter(arrest => {
+                return (isIndonesianLocation(arrest.origin) && 
+                       isIndonesianLocation(arrest.destination));
+            });
+            
+            const domesticDrugs = domesticCases.reduce((sum, arrest) => sum + arrest.weightKg * 1000 + arrest.weightG, 0);
+            const domesticPieces = domesticCases.reduce((sum, arrest) => sum + (arrest.weightPcs || 0), 0);
+            
+            // Hitung total bungkus/butir
+            const totalPieces = arrestsDatabase.reduce((sum, arrest) => sum + (arrest.weightPcs || 0), 0);
+            const piecesCases = arrestsDatabase.filter(arrest => arrest.weightPcs > 0).length;
+            
+            // Format berat dalam kg jika lebih dari 1000g
+            const formatWeight = (grams) => {
+                if (grams >= 1000) {
+                    return (grams / 1000).toFixed(1) + ' kg';
+                }
+                return grams + ' g';
+            };
+            
+            document.getElementById('imported-drugs-count').textContent = formatWeight(importedDrugs);
+            document.getElementById('imported-drugs-cases').textContent = importedCases.length + ' kasus';
+            document.getElementById('domestic-drugs-count').textContent = formatWeight(domesticDrugs);
+            document.getElementById('domestic-drugs-cases').textContent = domesticCases.length + ' kasus';
+            document.getElementById('drugs-pieces-count').textContent = totalPieces.toLocaleString() + (totalPieces > 0 ? ' bungkus/butir' : '');
+            document.getElementById('drugs-pieces-cases').textContent = piecesCases + ' kasus';
+        }
+
+        // Fungsi untuk memperbarui deskripsi modus pengiriman
+        function updateModusDescription() {
+            const modus = document.getElementById('modus').value;
+            const descriptionElement = document.getElementById('modus-description');
+            
+            const descriptions = {
+                'udara': 'Contoh: Dimasukkan ke dalam tas atau koper, disembunyikan dalam barang elektronik, atau dibawa oleh body carrier',
+                'laut': 'Contoh: Disembunyikan dalam kontainer barang, dicampur dengan komoditas lain, atau ditempel di lambung kapal',
+                'darat': 'Contoh: Disembunyikan dalam kompartemen rahasia kendaraan, dicampur dengan barang dagangan, atau dibawa oleh kurir',
+                'pos': 'Contoh: Dikirim melalui paket dengan label palsu, disembunyikan dalam buku atau barang lainnya',
+                'penumpang': 'Contoh: Dimasukkan ke dalam perut (body packing), diselipkan di pakaian dalam, atau ditelan dalam kapsul',
+                'other': 'Contoh: Metode penyelundupan khusus atau tidak biasa lainnya'
+            };
+            
+            descriptionElement.textContent = descriptions[modus] || 'Contoh: Dimasukkan ke dalam tas, dibungkus dengan pakaian, atau disembunyikan di barang lain';
+        }
+
+        // Fungsi bantu untuk mendeteksi lokasi Indonesia
+        function isIndonesianLocation(location) {
+            if (!location) return false;
+            const lowerLoc = location.toLowerCase();
+            return lowerLoc.includes('indonesia') || 
+                   lowerLoc.includes('jakarta') ||
+                   lowerLoc.includes('surabaya') ||
+                   lowerLoc.includes('bandung') ||
+                   lowerLoc.includes('medan') ||
+                   lowerLoc.includes('semarang') ||
+                   lowerLoc.includes('makassar') ||
+                   lowerLoc.includes('denpasar') ||
+                   lowerLoc.includes('batam') ||
+                   lowerLoc.includes('pekanbaru') ||
+                   lowerLoc.includes('palembang') ||
+                   lowerLoc.includes('jawa') ||
+                   lowerLoc.includes('sumatra') ||
+                   lowerLoc.includes('kalimantan') ||
+                   lowerLoc.includes('sulawesi') ||
+                   lowerLoc.includes('papua') ||
+                   lowerLoc.includes('bali') ||
+                   lowerLoc.includes('aceh');
+        }
+        
+        // Fungsi untuk menambahkan data penangkapan baru
+        async function addArrestData() {
+            const newsLink = document.getElementById('news-link').value;
+            const arrestDate = document.getElementById('arrest-date').value;
+            const drugType = document.getElementById('drug-type').value;
+            const suspectName = document.getElementById('suspect-name').value;
+            const weightKg = parseFloat(document.getElementById('drug-weight-kg').value) || 0;
+            const weightG = parseFloat(document.getElementById('drug-weight-g').value) || 0;
+            const weightPcs = parseInt(document.getElementById('drug-weight-pcs').value) || 0;
+            const agency = document.getElementById('agency').value;
+            const modus = document.getElementById('modus').value;
+            const modusDetail = document.getElementById('modus-detail').value;
+            const nationality = document.getElementById('nationality').value;
+            const originType = document.getElementById('origin-type').value;
+            const origin = document.getElementById('origin').value;
+            const originDescription = document.getElementById('origin-description').value;
+            const destination = document.getElementById('destination').value;
+            const destinationDescription = document.getElementById('destination-description').value;
+            const arrestLocation = document.getElementById('arrest-location').value;
+            const arrestLocationDescription = document.getElementById('arrest-location-description').value;
+            
+            // Validasi input
+            if (!newsLink || !arrestDate || !drugType || !origin || !destination || !arrestLocation) {
+                alert("Harap isi semua kolom yang diperlukan");
+                return;
+            }
+            
+            // Tampilkan loading
+            const addButton = document.getElementById('add-data-btn');
+            const originalText = addButton.innerHTML;
+            addButton.innerHTML = '<i class="fas fa-spinner loading"></i> Memproses...';
+            addButton.disabled = true;
+            
+            try {
+                // Validasi lokasi dengan geocoding
+                const originError = document.getElementById('origin-error');
+                const destinationError = document.getElementById('destination-error');
+                const arrestLocationError = document.getElementById('arrest-location-error');
+                
+                originError.textContent = '';
+                destinationError.textContent = '';
+                arrestLocationError.textContent = '';
+                
+                // Cek koordinat untuk semua lokasi
+                const [originCoord, destCoord, arrestCoord] = await Promise.all([
+                    getCoordinates(origin, 'origin'),
+                    getCoordinates(destination, 'destination'),
+                    getCoordinates(arrestLocation, 'arrest')
+                ]);
+                
+                // Beri peringatan jika lokasi tidak jelas
+                if (Math.abs(originCoord[0]) > 85 || Math.abs(originCoord[1]) > 180) {
+                    originError.textContent = 'Lokasi asal mungkin tidak akurat, harap periksa kembali';
+                }
+                
+                if (Math.abs(destCoord[0]) > 85 || Math.abs(destCoord[1]) > 180) {
+                    destinationError.textContent = 'Lokasi tujuan mungkin tidak akurat, harap periksa kembali';
+                }
+                
+                if (Math.abs(arrestCoord[0]) > 85 || Math.abs(arrestCoord[1]) > 180) {
+                    arrestLocationError.textContent = 'Lokasi penangkapan mungkin tidak akurat, harap periksa kembali';
+                }
+                
+                if (editingId !== null) {
+                    // Perbarui data yang ada
+                    const index = arrestsDatabase.findIndex(a => a.id === editingId);
+                    if (index !== -1) {
+                        arrestsDatabase[index] = {
+                            id: editingId,
+                            newsLink,
+                            date: arrestDate,
+                            drugType,
+                            suspectName,
+                            weightKg,
+                            weightG,
+                            weightPcs,
+                            agency,
+                            modus,
+                            modusDetail,
+                            nationality,
+                            originType,
+                            origin,
+                            originDescription,
+                            destination,
+                            destinationDescription,
+                            arrestLocation,
+                            arrestLocationDescription,
+                            coordinates: {
+                                origin: originCoord,
+                                destination: destCoord,
+                                arrest: arrestCoord
+                            }
+                        };
+                    }
+                    editingId = null;
+                    document.getElementById('edit-form-' + editingId)?.remove();
+                } else {
+                    // Tambahkan data baru
+                    const newArrest = {
+                        id: arrestsDatabase.length > 0 ? Math.max(...arrestsDatabase.map(a => a.id)) + 1 : 1,
+                        newsLink,
+                        date: arrestDate,
+                        drugType,
+                        suspectName,
+                        weightKg,
+                        weightG,
+                        weightPcs,
+                        agency,
+                        modus,
+                        modusDetail,
+                        nationality,
+                        originType,
+                        origin,
+                        originDescription,
+                        destination,
+                        destinationDescription,
+                        arrestLocation,
+                        arrestLocationDescription,
+                        coordinates: {
+                            origin: originCoord,
+                            destination: destCoord,
+                            arrest: arrestCoord
+                        }
+                    };
+                    
+                    arrestsDatabase.push(newArrest);
+                }
+                
+                saveDatabase();
+                updateArrestsTable();
+                await updateMap();
+                drawNetwork();
+                updateDatabaseGroups();
+                updateStatistics();
+                
+                // Kosongkan formulir
+                document.getElementById('news-link').value = '';
+                document.getElementById('arrest-date').value = '';
+                document.getElementById('drug-type').value = 'cocaine';
+                document.getElementById('suspect-name').value = '';
+                document.getElementById('drug-weight-kg').value = '';
+                document.getElementById('drug-weight-g').value = '';
+                document.getElementById('drug-weight-pcs').value = '';
+                document.getElementById('agency').value = '';
+                document.getElementById('modus').value = 'udara';
+                document.getElementById('modus-detail').value = '';
+                document.getElementById('nationality').value = '';
+                document.getElementById('origin-type').value = 'country';
+                document.getElementById('origin').value = '';
+                document.getElementById('origin-description').value = '';
+                document.getElementById('destination').value = '';
+                document.getElementById('destination-description').value = '';
+                document.getElementById('arrest-location').value = '';
+                document.getElementById('arrest-location-description').value = '';
+                updateModusDescription();
+                
+            } catch (error) {
+                console.error('Error adding arrest data:', error);
+                alert('Terjadi kesalahan saat menambahkan data: ' + error.message);
+            } finally {
+                // Kembalikan tombol ke keadaan semula
+                addButton.innerHTML = originalText;
+                addButton.disabled = false;
+            }
+        }
+        
+        // Fungsi untuk memperbarui tabel penangkapan
+        function updateArrestsTable() {
+            const tableBody = document.getElementById('arrests-table');
+            tableBody.innerHTML = '';
+            
+            arrestsDatabase.forEach(arrest => {
+                const row = document.createElement('tr');
+                
+                const formattedDate = new Date(arrest.date).toLocaleDateString('id-ID');
+                const weight = arrest.weightKg > 0 ? 
+                    `${arrest.weightKg} kg` : 
+                    `${arrest.weightG} g`;
+                const pieces = arrest.weightPcs > 0 ? `${arrest.weightPcs} pcs` : '-';
+                
+                row.innerHTML = `
+                    <td>${formattedDate}</td>
+                    <td>${capitalizeFirstLetter(translateDrugType(arrest.drugType))}</td>
+                    <td>${weight}</td>
+                    <td>${pieces}</td>
+                    <td>${translateModus(arrest.modus)}</td>
+                    <td class="action-buttons">
+                        <button class="action-btn edit-btn" onclick="showEditForm(${arrest.id})"><i class="fas fa-edit"></i></button>
+                        <button class="action-btn delete-btn" onclick="deleteArrest(${arrest.id})"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Fungsi untuk menampilkan formulir edit
+        function showEditForm(id) {
+            // Hapus semua formulir edit yang ada
+            document.querySelectorAll('.edit-form').forEach(form => form.remove());
+            
+            const arrest = arrestsDatabase.find(a => a.id === id);
+            if (!arrest) return;
+            
+            editingId = id;
+            
+            // Temukan baris dalam tabel
+            const rows = document.querySelectorAll('#arrests-table tr');
+            let targetRow = null;
+            
+            for (let row of rows) {
+                if (row.querySelector('.edit-btn')?.onclick?.toString().includes(id)) {
+                    targetRow = row;
+                    break;
+                }
+            }
+            
+            if (!targetRow) return;
+            
+            // Buat formulir edit
+            const editForm = document.createElement('div');
+            editForm.className = 'edit-form active';
+            editForm.id = `edit-form-${id}`;
+            editForm.innerHTML = `
+                <h3>Edit Data Penangkapan</h3>
+                <div class="form-group">
+                    <label for="edit-news-link-${id}">URL Artikel Berita:</label>
+                    <input type="url" id="edit-news-link-${id}" value="${arrest.newsLink}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-arrest-date-${id}">Tanggal Penangkapan:</label>
+                    <input type="date" id="edit-arrest-date-${id}" value="${arrest.date}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-drug-type-${id}">Jenis Narkotika:</label>
+                    <select id="edit-drug-type-${id}">
+                        <option value="cocaine" ${arrest.drugType === 'cocaine' ? 'selected' : ''}>Kokain</option>
+                        <option value="heroin" ${arrest.drugType === 'heroin' ? 'selected' : ''}>Heroin</option>
+                        <option value="methamphetamine" ${arrest.drugType === 'methamphetamine' ? 'selected' : ''}>Metamfetamin</option>
+                        <option value="marijuana" ${arrest.drugType === 'marijuana' ? 'selected' : ''}>Ganja</option>
+                        <option value="fentanyl" ${arrest.drugType === 'fentanyl' ? 'selected' : ''}>Fentanil</option>
+                        <option value="other" ${arrest.drugType === 'other' ? 'selected' : ''}>Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-suspect-name-${id}">Nama Tersangka:</label>
+                    <input type="text" id="edit-suspect-name-${id}" value="${arrest.suspectName}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-drug-weight-${id}">Berat Narkotika:</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="number" id="edit-drug-weight-kg-${id}" value="${arrest.weightKg}" placeholder="Kilogram" style="flex: 1;">
+                        <input type="number" id="edit-drug-weight-g-${id}" value="${arrest.weightG}" placeholder="Gram" style="flex: 1;">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="edit-drug-weight-pcs-${id}" value="${arrest.weightPcs}" placeholder="Bungkus/Butir" style="flex: 1;">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-agency-${id}">Aparatur Penegak Hukum:</label>
+                    <input type="text" id="edit-agency-${id}" value="${arrest.agency}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-modus-${id}">Modus Pengiriman:</label>
+                    <select id="edit-modus-${id}" onchange="updateEditModusDescription(${id})">
+                        <option value="udara" ${arrest.modus === 'udara' ? 'selected' : ''}>Udara (Pesawat)</option>
+                        <option value="laut" ${arrest.modus === 'laut' ? 'selected' : ''}>Laut (Kapal)</option>
+                        <option value="darat" ${arrest.modus === 'darat' ? 'selected' : ''}>Darat (Truk, Mobil)</option>
+                        <option value="pos" ${arrest.modus === 'pos' ? 'selected' : ''}>Pos/Paket</option>
+                        <option value="penumpang" ${arrest.modus === 'penumpang' ? 'selected' : ''}>Penumpang (Body Carrier)</option>
+                        <option value="other" ${arrest.modus === 'other' ? 'selected' : ''}>Lainnya</option>
+                    </select>
+                    <div id="edit-modus-description-${id}" class="modus-description">
+                        ${getModusDescription(arrest.modus)}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-modus-detail-${id}">Detail Modus Pengiriman:</label>
+                    <textarea id="edit-modus-detail-${id}" placeholder="Deskripsi detail cara penyelundupan">${arrest.modusDetail || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-nationality-${id}">Warga Negara Tersangka:</label>
+                    <input type="text" id="edit-nationality-${id}" value="${arrest.nationality}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-origin-type-${id}">Jenis Asal:</label>
+                    <select id="edit-origin-type-${id}">
+                        <option value="country" ${arrest.originType === 'country' ? 'selected' : ''}>Negara</option>
+                        <option value="region" ${arrest.originType === 'region' ? 'selected' : ''}>Daerah</option>
+                        <option value="address" ${arrest.originType === 'address' ? 'selected' : ''}>Alamat</option>
+                        <option value="airport" ${arrest.originType === 'airport' ? 'selected' : ''}>Bandara</option>
+                        <option value="port" ${arrest.originType === 'port' ? 'selected' : ''}>Pelabuhan</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-origin-${id}">Asal:</label>
+                    <input type="text" id="edit-origin-${id}" value="${arrest.origin}">
+                    <div id="edit-origin-error-${id}" class="error-message"></div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-origin-description-${id}">Deskripsi Asal (opsional):</label>
+                    <textarea id="edit-origin-description-${id}" placeholder="Deskripsi tambahan tentang asal narkotika">${arrest.originDescription || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-destination-${id}">Tujuan:</label>
+                    <input type="text" id="edit-destination-${id}" value="${arrest.destination}">
+                    <div id="edit-destination-error-${id}" class="error-message"></div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-destination-description-${id}">Deskripsi Tujuan (opsional):</label>
+                    <textarea id="edit-destination-description-${id}" placeholder="Deskripsi tambahan tentang tujuan narkotika">${arrest.destinationDescription || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-arrest-location-${id}">Lokasi Penangkapan:</label>
+                    <input type="text" id="edit-arrest-location-${id}" value="${arrest.arrestLocation}">
+                    <div id="edit-arrest-location-error-${id}" class="error-message"></div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-arrest-location-description-${id}">Deskripsi Lokasi Penangkapan (opsional):</label>
+                    <textarea id="edit-arrest-location-description-${id}" placeholder="Deskripsi tambahan tentang lokasi penangkapan">${arrest.arrestLocationDescription || ''}</textarea>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveEdit(${id})" id="save-edit-btn-${id}"><i class="fas fa-save"></i> Simpan</button>
+                    <button onclick="cancelEdit(${id})" style="background-color: #e74c3c;"><i class="fas fa-times"></i> Batal</button>
+                </div>
+            `;
+            
+            // Sisipkan setelah baris
+            targetRow.parentNode.insertBefore(editForm, targetRow.nextSibling);
+        }
+        
+        // Fungsi untuk mendapatkan deskripsi modus
+        function getModusDescription(modus) {
+            const descriptions = {
+                'udara': 'Contoh: Dimasukkan ke dalam tas atau koper, disembunyikan dalam barang elektronik, atau dibawa oleh body carrier',
+                'laut': 'Contoh: Disembunyikan dalam kontainer barang, dicampur dengan komoditas lain, atau ditempel di lambung kapal',
+                'darat': 'Contoh: Disembunyikan dalam kompartemen rahasia kendaraan, dicampur dengan barang dagangan, atau dibawa oleh kurir',
+                'pos': 'Contoh: Dikirim melalui paket dengan label palsu, disembunyikan dalam buku atau barang lainnya',
+                'penumpang': 'Contoh: Dimasukkan ke dalam perut (body packing), diselipkan di pakaian dalam, atau ditelan dalam kapsul',
+                'other': 'Contoh: Metode penyelundupan khusus atau tidak biasa lainnya'
+            };
+            
+            return descriptions[modus] || 'Contoh: Dimasukkan ke dalam tas, dibungkus dengan pakaian, atau disembunyikan di barang lain';
+        }
+        
+        // Fungsi untuk memperbarui deskripsi modus di form edit
+        function updateEditModusDescription(id) {
+            const modus = document.getElementById(`edit-modus-${id}`).value;
+            document.getElementById(`edit-modus-description-${id}`).textContent = getModusDescription(modus);
+        }
+        
+        // Fungsi untuk menyimpan edit
+        async function saveEdit(id) {
+            const arrest = arrestsDatabase.find(a => a.id === id);
+            if (!arrest) return;
+            
+            const saveButton = document.getElementById(`save-edit-btn-${id}`);
+            const originalText = saveButton.innerHTML;
+            saveButton.innerHTML = '<i class="fas fa-spinner loading"></i> Menyimpan...';
+            saveButton.disabled = true;
+            
+            try {
+                const newsLink = document.getElementById(`edit-news-link-${id}`).value;
+                const arrestDate = document.getElementById(`edit-arrest-date-${id}`).value;
+                const drugType = document.getElementById(`edit-drug-type-${id}`).value;
+                const suspectName = document.getElementById(`edit-suspect-name-${id}`).value;
+                const weightKg = parseFloat(document.getElementById(`edit-drug-weight-kg-${id}`).value) || 0;
+                const weightG = parseFloat(document.getElementById(`edit-drug-weight-g-${id}`).value) || 0;
+                const weightPcs = parseInt(document.getElementById(`edit-drug-weight-pcs-${id}`).value) || 0;
+                const agency = document.getElementById(`edit-agency-${id}`).value;
+                const modus = document.getElementById(`edit-modus-${id}`).value;
+                const modusDetail = document.getElementById(`edit-modus-detail-${id}`).value;
+                const nationality = document.getElementById(`edit-nationality-${id}`).value;
+                const originType = document.getElementById(`edit-origin-type-${id}`).value;
+                const origin = document.getElementById(`edit-origin-${id}`).value;
+                const originDescription = document.getElementById(`edit-origin-description-${id}`).value;
+                const destination = document.getElementById(`edit-destination-${id}`).value;
+                const destinationDescription = document.getElementById(`edit-destination-description-${id}`).value;
+                const arrestLocation = document.getElementById(`edit-arrest-location-${id}`).value;
+                const arrestLocationDescription = document.getElementById(`edit-arrest-location-description-${id}`).value;
+                
+                // Validasi lokasi dengan geocoding
+                const originError = document.getElementById(`edit-origin-error-${id}`);
+                const destinationError = document.getElementById(`edit-destination-error-${id}`);
+                const arrestLocationError = document.getElementById(`edit-arrest-location-error-${id}`);
+                
+                originError.textContent = '';
+                destinationError.textContent = '';
+                arrestLocationError.textContent = '';
+                
+                // Cek koordinat untuk semua lokasi
+                const [originCoord, destCoord, arrestCoord] = await Promise.all([
+                    getCoordinates(origin, 'origin'),
+                    getCoordinates(destination, 'destination'),
+                    getCoordinates(arrestLocation, 'arrest')
+                ]);
+                
+                // Beri peringatan jika lokasi tidak jelas
+                if (Math.abs(originCoord[0]) > 85 || Math.abs(originCoord[1]) > 180) {
+                    originError.textContent = 'Lokasi asal mungkin tidak akurat, harap periksa kembali';
+                }
+                
+                if (Math.abs(destCoord[0]) > 85 || Math.abs(destCoord[1]) > 180) {
+                    destinationError.textContent = 'Lokasi tujuan mungkin tidak akurat, harap periksa kembali';
+                }
+                
+                if (Math.abs(arrestCoord[0]) > 85 || Math.abs(arrestCoord[1]) > 180) {
+                    arrestLocationError.textContent = 'Lokasi penangkapan mungkin tidak akurat, harap periksa kembali';
+                }
+                
+                // Update data arrest
+                arrest.newsLink = newsLink;
+                arrest.date = arrestDate;
+                arrest.drugType = drugType;
+                arrest.suspectName = suspectName;
+                arrest.weightKg = weightKg;
+                arrest.weightG = weightG;
+                arrest.weightPcs = weightPcs;
+                arrest.agency = agency;
+                arrest.modus = modus;
+                arrest.modusDetail = modusDetail;
+                arrest.nationality = nationality;
+                arrest.originType = originType;
+                arrest.origin = origin;
+                arrest.originDescription = originDescription;
+                arrest.destination = destination;
+                arrest.destinationDescription = destinationDescription;
+                arrest.arrestLocation = arrestLocation;
+                arrest.arrestLocationDescription = arrestLocationDescription;
+                arrest.coordinates = {
+                    origin: originCoord,
+                    destination: destCoord,
+                    arrest: arrestCoord
+                };
+                
+                editingId = null;
+                document.getElementById(`edit-form-${id}`).remove();
+                
+                saveDatabase();
+                updateArrestsTable();
+                await updateMap();
+                drawNetwork();
+                updateDatabaseGroups();
+                updateStatistics();
+                
+            } catch (error) {
+                console.error('Error saving edit:', error);
+                alert('Terjadi kesalahan saat menyimpan perubahan: ' + error.message);
+            } finally {
+                saveButton.innerHTML = originalText;
+                saveButton.disabled = false;
+            }
+        }
+        
+        // Fungsi untuk membatalkan edit
+        function cancelEdit(id) {
+            editingId = null;
+            document.getElementById(`edit-form-${id}`).remove();
+        }
+        
+        // Fungsi untuk menghapus data penangkapan
+        async function deleteArrest(id) {
+            if (confirm("Apakah Anda yakin ingin menghapus data penangkapan ini?")) {
+                arrestsDatabase = arrestsDatabase.filter(a => a.id !== id);
+                saveDatabase();
+                updateArrestsTable();
+                await updateMap();
+                drawNetwork();
+                updateDatabaseGroups();
+                updateStatistics();
+            }
+        }
+        
+        // Fungsi untuk memperbarui peta dengan data penangkapan
+        async function updateMap() {
+            // Hapus semua marker dan rute yang ada
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.Tooltip) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // Tambahkan marker dan rute baru
+            for (const arrest of arrestsDatabase) {
+                // Gunakan koordinat yang sudah disimpan atau dapatkan yang baru
+                let originCoord, destCoord, arrestCoord;
+                
+                if (arrest.coordinates) {
+                    originCoord = arrest.coordinates.origin;
+                    destCoord = arrest.coordinates.destination;
+                    arrestCoord = arrest.coordinates.arrest;
+                } else {
+                    // Jika tidak ada koordinat yang disimpan, dapatkan yang baru
+                    [originCoord, destCoord, arrestCoord] = await Promise.all([
+                        getCoordinates(arrest.origin, 'origin'),
+                        getCoordinates(arrest.destination, 'destination'),
+                        getCoordinates(arrest.arrestLocation, 'arrest')
+                    ]);
+                    
+                    // Simpan koordinat untuk penggunaan berikutnya
+                    arrest.coordinates = {
+                        origin: originCoord,
+                        destination: destCoord,
+                        arrest: arrestCoord
+                    };
+                }
+                
+                // Buat marker dengan ikon yang sesuai
+                const originMarker = L.marker(originCoord, {
+                    icon: originIcon
+                }).addTo(map).bindPopup(`
+                    <b>Asal:</b> ${arrest.origin}<br>
+                    <b>Jenis:</b> ${translateOriginType(arrest.originType)}<br>
+                    <b>Narkotika:</b> ${capitalizeFirstLetter(translateDrugType(arrest.drugType))}<br>
+                    <b>Kasus:</b> ${getCaseCountForLocation(arrest.origin, 'origin')}
+                    ${arrest.originDescription ? `<br><b>Deskripsi:</b> ${arrest.originDescription}` : ''}
+                `);
+                
+                // Tambahkan label permanen untuk asal
+                L.tooltip({
+                    permanent: true,
+                    direction: 'top',
+                    className: 'origin-label'
+                })
+                .setContent(arrest.origin)
+                .setLatLng(originCoord)
+                .addTo(map);
+                
+                const destMarker = L.marker(destCoord, {
+                    icon: destinationIcon
+                }).addTo(map).bindPopup(`
+                    <b>Tujuan:</b> ${arrest.destination}<br>
+                    <b>Narkotika:</b> ${capitalizeFirstLetter(translateDrugType(arrest.drugType))}<br>
+                    <b>Kasus:</b> ${getCaseCountForLocation(arrest.destination, 'destination')}
+                    ${arrest.destinationDescription ? `<br><b>Deskripsi:</b> ${arrest.destinationDescription}` : ''}
+                `);
+                
+                const arrestMarker = L.marker(arrestCoord, {
+                    icon: arrestIcon
+                }).addTo(map).bindPopup(`
+                    <b>Lokasi Penangkapan:</b> ${arrest.arrestLocation}<br>
+                    <b>Tanggal:</b> ${new Date(arrest.date).toLocaleDateString('id-ID')}<br>
+                    <b>Narkotika:</b> ${capitalizeFirstLetter(translateDrugType(arrest.drugType))}<br>
+                    <b>Berat:</b> ${arrest.weightKg>0?arrest.weightKg+'kg':arrest.weightG+'g'} ${arrest.weightPcs>0?', '+arrest.weightPcs+' pcs':''}<br>
+                    <b>Tersangka:</b> ${arrest.suspectName}<br>
+                    <b>Aparatur:</b> ${arrest.agency}<br>
+                    <b>Warga Negara:</b> ${arrest.nationality}<br>
+                    <b>Modus:</b> ${translateModus(arrest.modus)}<br>
+                    <b>Detail Modus:</b> ${arrest.modusDetail || '-'}<br>
+                    <b>Kasus:</b> ${getCaseCountForLocation(arrest.arrestLocation, 'arrest')}
+                    ${arrest.arrestLocationDescription ? `<br><b>Deskripsi:</b> ${arrest.arrestLocationDescription}` : ''}
+                `);
+                
+                // Buat garis rute
+                const routeLine = L.polyline([originCoord, destCoord], {
+                    color: '#e74c3c',
+                    weight: 3,
+                    dashArray: '5, 5'
+                }).addTo(map).bindPopup(`
+                    <b>Rute dari ${arrest.origin} ke ${arrest.destination}</b><br>
+                    <b>Jenis:</b> ${capitalizeFirstLetter(translateDrugType(arrest.drugType))}<br>
+                    <b>Berat:</b> ${arrest.weightKg>0?arrest.weightKg+'kg':arrest.weightG+'g'} ${arrest.weightPcs>0?', '+arrest.weightPcs+' pcs':''}<br>
+                    <b>Modus:</b> ${translateModus(arrest.modus)}<br>
+                    <b>Detail Modus:</b> ${arrest.modusDetail || '-'}
+                `);
+                
+                const arrestLine = L.polyline([destCoord, arrestCoord], {
+                    color: '#f1c40f',
+                    weight: 3,
+                    dashArray: '5, 5'
+                }).addTo(map).bindPopup(`
+                    <b>Penangkapan di ${arrest.arrestLocation}</b><br>
+                    <b>Tanggal:</b> ${new Date(arrest.date).toLocaleDateString('id-ID')}<br>
+                    <b>Aparatur:</b> ${arrest.agency}<br>
+                    <b>Warga Negara:</b> ${arrest.nationality}
+                `);
+            }
+            
+            // Sesuaikan tampilan peta untuk menampilkan semua marker
+            if (arrestsDatabase.length > 0) {
+                const group = new L.featureGroup();
+                map.eachLayer(layer => {
+                    if (layer instanceof L.Marker) {
+                        group.addLayer(layer);
+                    }
+                });
+                map.fitBounds(group.getBounds().pad(0.2));
+            }
+        }
+
+        // Fungsi untuk menggambar visualisasi jaringan
+        function drawNetwork() {
+            const container = document.getElementById('network-graph');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            // Buat array untuk nodes dan edges
+            const nodes = [];
+            const edges = [];
+            const nodeMap = new Map(); // Untuk melacak node berdasarkan lokasi dan peran
+            
+            // Warna untuk grup
+            const groupColors = {
+                'origin': '#e74c3c',
+                'destination': '#2ecc71',
+                'arrest': '#f1c40f'
+            };
+            
+            // Fungsi untuk mendapatkan node id
+            function getNodeId(location, group) {
+                const key = `${location}_${group}`;
+                if (nodeMap.has(key)) {
+                    return nodeMap.get(key);
+                } else {
+                    const id = nodes.length;
+                    const node = { 
+                        id, 
+                        label: location,
+                        group,
+                        title: `<div class="vis-tooltip"><h4>${location}</h4><p>Jenis: ${group === 'origin' ? 'Asal' : group === 'destination' ? 'Tujuan' : 'Penangkapan'}</p></div>`,
+                        shape: 'dot',
+                        size: group === 'origin' ? 25 : group === 'destination' ? 20 : 18,
+                        font: {
+                            size: group === 'origin' ? 16 : group === 'destination' ? 14 : 12,
+                            color: group === 'arrest' ? '#333' : '#fff',
+                            strokeWidth: group === 'arrest' ? 0 : 2,
+                            strokeColor: group === 'arrest' ? '#000' : '#000'
+                        },
+                        count: 1 // Jumlah kasus di node ini
+                    };
+                    nodes.push(node);
+                    nodeMap.set(key, id);
+                    return id;
+                }
+            }
+            
+            // Kumpulkan data untuk menghitung frekuensi lokasi per peran
+            const locationCounts = {
+                origin: {},
+                destination: {},
+                arrest: {}
+            };
+            
+            // Iterasi setiap data penangkapan untuk menghitung frekuensi
+            arrestsDatabase.forEach(arrest => {
+                // Hitung frekuensi asal
+                if (!locationCounts.origin[arrest.origin]) {
+                    locationCounts.origin[arrest.origin] = 0;
+                }
+                locationCounts.origin[arrest.origin]++;
+                
+                // Hitung frekuensi tujuan
+                if (!locationCounts.destination[arrest.destination]) {
+                    locationCounts.destination[arrest.destination] = 0;
+                }
+                locationCounts.destination[arrest.destination]++;
+                
+                // Hitung frekuensi penangkapan
+                if (!locationCounts.arrest[arrest.arrestLocation]) {
+                    locationCounts.arrest[arrest.arrestLocation] = 0;
+                }
+                locationCounts.arrest[arrest.arrestLocation]++;
+            });
+            
+            // Iterasi setiap data penangkapan untuk membuat node dan edge
+            arrestsDatabase.forEach((arrest, index) => {
+                // Hitung jumlah kasus untuk lokasi ini
+                const originCount = locationCounts.origin[arrest.origin] || 1;
+                const destinationCount = locationCounts.destination[arrest.destination] || 1;
+                const arrestCount = locationCounts.arrest[arrest.arrestLocation] || 1;
+                
+                // Node asal (dengan jumlah kasus)
+                const originId = getNodeId(arrest.origin, 'origin');
+                nodes[originId].count = originCount;
+                
+                // Node tujuan (dengan jumlah kasus)
+                const destinationId = getNodeId(arrest.destination, 'destination');
+                nodes[destinationId].count = destinationCount;
+                
+                // Node lokasi penangkapan (dengan jumlah kasus)
+                const arrestId = getNodeId(arrest.arrestLocation, 'arrest');
+                nodes[arrestId].count = arrestCount;
+                
+                // Edge dari asal ke tujuan
+                edges.push({
+                    from: originId,
+                    to: destinationId,
+                    label: `${translateDrugType(arrest.drugType)} (${arrest.weightKg>0?arrest.weightKg+'kg':arrest.weightG+'g'}${arrest.weightPcs>0?', '+arrest.weightPcs+'pcs':''})`,
+                    arrows: 'to',
+                    color: '#3498db',
+                    title: `<div class="vis-tooltip">
+                        <h4>Rute Narkotika</h4>
+                        <p><b>Asal:</b> ${arrest.origin}</p>
+                        <p><b>Tujuan:</b> ${arrest.destination}</p>
+                        <p><b>Jenis:</b> ${capitalizeFirstLetter(translateDrugType(arrest.drugType))}</p>
+                        <p><b>Berat:</b> ${arrest.weightKg>0?arrest.weightKg+'kg':arrest.weightG+'g'} ${arrest.weightPcs>0?', '+arrest.weightPcs+' pcs':''}</p>
+                        <p><b>Modus:</b> ${translateModus(arrest.modus)}</p>
+                        <p><b>Detail Modus:</b> ${arrest.modusDetail || '-'}</p>
+                    </div>`
+                });
+                
+                // Edge dari tujuan ke lokasi penangkapan
+                edges.push({
+                    from: destinationId,
+                    to: arrestId,
+                    label: translateModus(arrest.modus),
+                    arrows: 'to',
+                    color: '#9b59b6',
+                    title: `<div class="vis-tooltip">
+                        <h4>Penangkapan</h4>
+                        <p><b>Lokasi:</b> ${arrest.arrestLocation}</p>
+                        <p><b>Tanggal:</b> ${new Date(arrest.date).toLocaleDateString('id-ID')}</p>
+                        <p><b>Aparatur:</b> ${arrest.agency}</p>
+                        <p><b>Warga Negara:</b> ${arrest.nationality}</p>
+                    </div>`
+                });
+            });
+            
+            // Update ukuran node berdasarkan jumlah kasus
+            nodes.forEach(node => {
+                if (node.count > 1) {
+                    // Tambahkan label jumlah di tengah node
+                    node.label = `${node.label}\n(${node.count})`;
+                    
+                    // Buat node lebih besar untuk jumlah kasus yang banyak
+                    node.size = node.size * (1 + Math.min(node.count * 0.2, 1.5));
+                    
+                    // Tambahkan kelas khusus untuk node dengan banyak kasus
+                    node.font.size = Math.min(node.font.size * (1 + Math.min(node.count * 0.15, 1)), 24);
+                    
+                    // Untuk node asal, buat lebih besar lagi
+                    if (node.group === 'origin') {
+                        node.size *= 1.3;
+                        node.shapeProperties = { borderDashes: false };
+                        node.borderWidth = 3;
+                    }
+                }
+            });
+            
+            // Konfigurasi
+            const data = {
+                nodes: nodes,
+                edges: edges
+            };
+            
+            const options = {
+                groups: {
+                    origin: { 
+                        color: groupColors.origin,
+                        font: { color: '#fff', size: 14 }
+                    },
+                    destination: { 
+                        color: groupColors.destination,
+                        font: { color: '#fff', size: 14 }
+                    },
+                    arrest: { 
+                        color: groupColors.arrest,
+                        font: { color: '#333', size: 14 }
+                    }
+                },
+                edges: {
+                    font: {
+                        size: 12,
+                        align: 'middle'
+                    },
+                    arrows: {
+                        to: { enabled: true, scaleFactor: 0.8 }
+                    },
+                    smooth: {
+                        type: 'cubicBezier',
+                        forceDirection: 'horizontal'
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    stabilization: {
+                        iterations: 100
+                    },
+                    barnesHut: {
+                        gravitationalConstant: -8000,
+                        springConstant: 0.04,
+                        springLength: 120
+                    }
+                },
+                interaction: {
+                    dragNodes: true,
+                    dragView: true,
+                    zoomView: true,
+                    hover: true,
+                    tooltipDelay: 200
+                },
+                layout: {
+                    improvedLayout: true
+                },
+                nodes: {
+                    shapeProperties: {
+                        useBorderWithImage: true
+                    }
+                }
+            };
+            
+            // Inisialisasi jaringan
+            const network = new vis.Network(container, data, options);
+            
+            // Simpan jaringan untuk kontrol
+            window.network = network;
+            
+            // Tambahkan custom rendering untuk menampilkan jumlah di tengah node
+            network.on("afterDrawing", function(ctx) {
+                const scale = this.getScale();
+                const offset = this.getViewPosition();
+                
+                nodes.forEach(node => {
+                    if (node.count > 1) {
+                        const pos = this.getPositions([node.id]);
+                        const x = pos[node.id].x;
+                        const y = pos[node.id].y;
+                        
+                        ctx.save();
+                        ctx.translate(x, y);
+                        ctx.scale(1/scale, 1/scale);
+                        
+                        // Gambar latar belakang untuk teks
+                        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 10, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        // Gambar teks jumlah
+                        ctx.font = 'bold 12px Arial';
+                        ctx.fillStyle = '#fff';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(node.count, 0, 0);
+                        
+                        ctx.restore();
+                    }
+                });
+            });
+        }
+
+        // Fungsi bantu untuk menghitung kasus per lokasi
+        function getCaseCountForLocation(location, type) {
+            if (type === 'origin') {
+                return arrestsDatabase.filter(a => a.origin === location).length;
+            } else if (type === 'destination') {
+                return arrestsDatabase.filter(a => a.destination === location).length;
+            } else {
+                return arrestsDatabase.filter(a => a.arrestLocation === location).length;
+            }
+        }
+        
+        // Fungsi untuk mereset tampilan jaringan
+        function resetNetworkView() {
+            if (window.network) {
+                window.network.fit();
+            }
+        }
+        
+        // Fungsi untuk mengaktifkan/menonaktifkan fisika jaringan
+        function togglePhysics() {
+            if (window.network) {
+                const options = window.network.getOptions();
+                options.physics.enabled = !options.physics.enabled;
+                window.network.setOptions(options);
+            }
+        }
+        
+        // Fungsi untuk mengekspor gambar jaringan
+        function exportNetworkImage() {
+            if (window.network) {
+                try {
+                    // Dapatkan canvas dari jaringan
+                    const canvas = document.querySelector('#network-graph canvas');
+                    if (!canvas) {
+                        throw new Error('Canvas tidak ditemukan');
+                    }
+                    
+                    // Buat data URL dari canvas
+                    const dataURL = canvas.toDataURL('image/png');
+                    
+                    // Buat link download
+                    const link = document.createElement('a');
+                    link.href = dataURL;
+                    link.download = 'visualisasi-jaringan-narkotika.png';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (error) {
+                    console.error('Error exporting network image:', error);
+                    alert('Gagal mengekspor gambar: ' + error.message);
+                }
+            } else {
+                alert('Tidak ada jaringan yang dapat diekspor');
+            }
+        }
+        
+        // Fungsi untuk menerapkan filter
+        function applyFilters() {
+            const drugType = document.getElementById('filter-drug-type').value;
+            const origin = document.getElementById('filter-origin').value.toLowerCase();
+            const destination = document.getElementById('filter-destination').value.toLowerCase();
+            const arrestLocation = document.getElementById('filter-arrest-location').value.toLowerCase();
+            
+            currentFilters = {
+                drugType: drugType,
+                origin: origin,
+                destination: destination,
+                arrestLocation: arrestLocation
+            };
+            
+            updateDatabaseGroups();
+        }
+        
+        // Fungsi untuk mereset filter
+        function resetFilters() {
+            document.getElementById('filter-drug-type').value = '';
+            document.getElementById('filter-origin').value = '';
+            document.getElementById('filter-destination').value = '';
+            document.getElementById('filter-arrest-location').value = '';
+            
+            currentFilters = {};
+            updateDatabaseGroups();
+        }
+        
+        // Fungsi untuk memperbarui kelompok database
+        function updateDatabaseGroups() {
+            const groupsContainer = document.getElementById('database-groups');
+            groupsContainer.innerHTML = '';
+            
+            // Filter data berdasarkan kriteria yang dipilih
+            let filteredData = [...arrestsDatabase];
+            
+            if (currentFilters.drugType) {
+                filteredData = filteredData.filter(arrest => arrest.drugType === currentFilters.drugType);
+            }
+            
+            if (currentFilters.origin) {
+                filteredData = filteredData.filter(arrest => 
+                    arrest.origin.toLowerCase().includes(currentFilters.origin)
+                );
+            }
+            
+            if (currentFilters.destination) {
+                filteredData = filteredData.filter(arrest => 
+                    arrest.destination.toLowerCase().includes(currentFilters.destination)
+                );
+            }
+            
+            if (currentFilters.arrestLocation) {
+                filteredData = filteredData.filter(arrest => 
+                    arrest.arrestLocation.toLowerCase().includes(currentFilters.arrestLocation)
+                );
+            }
+            
+            // Kelompokkan data berdasarkan asal
+            const originGroups = {};
+            filteredData.forEach(arrest => {
+                if (!originGroups[arrest.origin]) {
+                    originGroups[arrest.origin] = [];
+                }
+                originGroups[arrest.origin].push(arrest);
+            });
+            
+            // Buat elemen kelompok
+            for (const origin in originGroups) {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'database-group';
+                
+                const groupContent = document.createElement('div');
+                groupContent.className = 'group-content';
+                
+                // Hitung tujuan dan lokasi penangkapan
+                const destinationCounts = {};
+                const arrestLocationCounts = {};
+                
+                originGroups[origin].forEach(arrest => {
+                    destinationCounts[arrest.destination] = (destinationCounts[arrest.destination] || 0) + 1;
+                    arrestLocationCounts[arrest.arrestLocation] = (arrestLocationCounts[arrest.arrestLocation] || 0) + 1;
+                });
+                
+                // Buat HTML untuk kelompok
+                groupDiv.innerHTML = `
+                    <h3 onclick="toggleGroup(this.parentElement)">
+                        ${origin} <i class="fas fa-chevron-down"></i>
+                        <span class="location-badge">${originGroups[origin].length} kasus</span>
+                    </h3>
+                `;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'group-content';
+                
+                // Tambahkan tujuan
+                const destSection = document.createElement('div');
+                destSection.innerHTML = `<h4>Tujuan (${Object.keys(destinationCounts).length})</h4>`;
+                for (const dest in destinationCounts) {
+                    destSection.innerHTML += `
+                        <span class="location-badge">${dest} (${destinationCounts[dest]})</span>
+                    `;
+                }
+                contentDiv.appendChild(destSection);
+                
+                // Tambahkan lokasi penangkapan
+                const arrestSection = document.createElement('div');
+                arrestSection.innerHTML = `<h4>Lokasi Penangkapan (${Object.keys(arrestLocationCounts).length})</h4>`;
+                for (const loc in arrestLocationCounts) {
+                    arrestSection.innerHTML += `
+                        <span class="location-badge">${loc} (${arrestLocationCounts[loc]})</span>
+                    `;
+                }
+                contentDiv.appendChild(arrestSection);
+                
+                // Tambahkan tabel data
+                const tableSection = document.createElement('div');
+                tableSection.innerHTML = `<h4>Kasus dari ${origin}</h4>`;
+                
+                const table = document.createElement('table');
+                table.className = 'data-table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Jenis Narkotika</th>
+                            <th>Berat</th>
+                            <th>Bungkus/Butir</th>
+                            <th>Modus</th>
+                            <th>Detail Modus</th>
+                            <th>Tujuan</th>
+                            <th>Lokasi Penangkapan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${originGroups[origin].map(arrest => `
+                            <tr>
+                                <td>${new Date(arrest.date).toLocaleDateString('id-ID')}</td>
+                                <td>${capitalizeFirstLetter(translateDrugType(arrest.drugType))}</td>
+                                <td>${arrest.weightKg > 0 ? arrest.weightKg + ' kg' : arrest.weightG + ' g'}</td>
+                                <td>${arrest.weightPcs > 0 ? arrest.weightPcs : '-'}</td>
+                                <td>${translateModus(arrest.modus)}</td>
+                                <td>${arrest.modusDetail || '-'}</td>
+                                <td>${arrest.destination}</td>
+                                <td>${arrest.arrestLocation}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                `;
+                tableSection.appendChild(table);
+                contentDiv.appendChild(tableSection);
+                
+                groupDiv.appendChild(contentDiv);
+                groupsContainer.appendChild(groupDiv);
+            }
+            
+            // Tampilkan pesan jika tidak ada data yang cocok
+            if (Object.keys(originGroups).length === 0) {
+                groupsContainer.innerHTML = '<p>Tidak ada data yang cocok dengan filter yang dipilih</p>';
+            }
+        }
+        
+        // Fungsi untuk mengekspor data ke Excel
+        function exportToExcel() {
+            // Siapkan data untuk ekspor
+            const exportData = arrestsDatabase.map(arrest => ({
+                'URL Berita': arrest.newsLink,
+                'Tanggal': new Date(arrest.date).toLocaleDateString('id-ID'),
+                'Jenis Narkotika': capitalizeFirstLetter(translateDrugType(arrest.drugType)),
+                'Nama Tersangka': arrest.suspectName,
+                'Berat (kg)': arrest.weightKg,
+                'Berat (g)': arrest.weightG,
+                'Bungkus/Butir': arrest.weightPcs > 0 ? arrest.weightPcs : '',
+                'Aparatur Penegak Hukum': arrest.agency,
+                'Modus Pengiriman': translateModus(arrest.modus),
+                'Detail Modus Pengiriman': arrest.modusDetail || '',
+                'Warga Negara': arrest.nationality,
+                'Jenis Asal': capitalizeFirstLetter(translateOriginType(arrest.originType)),
+                'Asal': arrest.origin,
+                'Deskripsi Asal': arrest.originDescription || '',
+                'Tujuan': arrest.destination,
+                'Deskripsi Tujuan': arrest.destinationDescription || '',
+                'Lokasi Penangkapan': arrest.arrestLocation,
+                'Deskripsi Lokasi Penangkapan': arrest.arrestLocationDescription || '',
+                'Koordinat Asal': arrest.coordinates?.origin?.join(', ') || '',
+                'Koordinat Tujuan': arrest.coordinates?.destination?.join(', ') || '',
+                'Koordinat Penangkapan': arrest.coordinates?.arrest?.join(', ') || ''
+            }));
+            
+            // Buat worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            // Buat workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Data Penangkapan");
+            
+            // Ekspor ke file
+            XLSX.writeFile(wb, "Analisis_Rute_Narkotika.xlsx");
+        }
+        
+        // Fungsi untuk mengekspor data ke PowerPoint
+        function exportToPPT() {
+            const pptx = new PptxGenJS();
+            
+            // Tambahkan slide judul
+            let slide = pptx.addSlide();
+            slide.addText("Analisis Rute Narkotika", {
+                x: 1, y: 1, w: "80%", h: 1,
+                fontSize: 36, bold: true, align: "center"
+            });
+            slide.addText(`Dibuat pada ${new Date().toLocaleDateString('id-ID')}`, {
+                x: 1, y: 2, w: "80%", h: 0.5,
+                fontSize: 18, align: "center"
+            });
+            
+            // Tambahkan slide ringkasan
+            slide = pptx.addSlide();
+            slide.addText("Statistik Ringkasan", {
+                x: 0.5, y: 0.5, w: "90%", h: 0.5,
+                fontSize: 24, bold: true
+            });
+            
+            // Hitung berdasarkan jenis narkotika
+            const drugCounts = {};
+            arrestsDatabase.forEach(arrest => {
+                drugCounts[arrest.drugType] = (drugCounts[arrest.drugType] || 0) + 1;
+            });
+            
+            let text = "Kasus berdasarkan Jenis Narkotika:\n";
+            for (const drug in drugCounts) {
+                text += `- ${capitalizeFirstLetter(translateDrugType(drug))}: ${drugCounts[drug]}\n`;
+            }
+            
+            slide.addText(text, {
+                x: 0.5, y: 1.2, w: "40%", h: 2,
+                fontSize: 14
+            });
+            
+            // Hitung berdasarkan asal
+            const originCounts = {};
+            arrestsDatabase.forEach(arrest => {
+                originCounts[arrest.origin] = (originCounts[arrest.origin] || 0) + 1;
+            });
+            
+            text = "Kasus berdasarkan Asal:\n";
+            for (const origin in originCounts) {
+                text += `- ${origin}: ${originCounts[origin]}\n`;
+            }
+            
+            slide.addText(text, {
+                x: 5, y: 1.2, w: "40%", h: 2,
+                fontSize: 14
+            });
+            
+            // Statistik Indonesia
+            const importedCases = arrestsDatabase.filter(arrest => {
+                return arrest.destination.toLowerCase().includes('indonesia') || 
+                       isIndonesianLocation(arrest.destination);
+            }).length;
+            
+            const domesticCases = arrestsDatabase.filter(arrest => {
+                return (isIndonesianLocation(arrest.origin) && 
+                       isIndonesianLocation(arrest.destination));
+            }).length;
+            
+            const totalPieces = arrestsDatabase.reduce((sum, arrest) => sum + (arrest.weightPcs || 0), 0);
+            
+            text = `Statistik Indonesia:\n- Narkotika masuk: ${importedCases} kasus\n- Peredaran dalam negeri: ${domesticCases} kasus\n- Total bungkus/butir: ${totalPieces.toLocaleString()}`;
+            
+            slide.addText(text, {
+                x: 0.5, y: 3.5, w: "40%", h: 2,
+                fontSize: 14
+            });
+            
+            // Tambahkan slide untuk setiap kasus
+            arrestsDatabase.forEach((arrest, index) => {
+                slide = pptx.addSlide();
+                slide.addText(`Kasus #${index + 1}`, {
+                    x: 0.5, y: 0.5, w: "90%", h: 0.5,
+                    fontSize: 24, bold: true
+                });
+                
+                const details = `
+                    Tanggal: ${new Date(arrest.date).toLocaleDateString('id-ID')}
+                    Jenis Narkotika: ${capitalizeFirstLetter(translateDrugType(arrest.drugType))}
+                    Berat: ${arrest.weightKg > 0 ? arrest.weightKg + ' kg' : arrest.weightG + ' g'}
+                    Bungkus/Butir: ${arrest.weightPcs > 0 ? arrest.weightPcs : '-'}
+                    Tersangka: ${arrest.suspectName}
+                    Aparatur: ${arrest.agency}
+                    Modus Pengiriman: ${translateModus(arrest.modus)}
+                    Detail Modus: ${arrest.modusDetail || '-'}
+                    Warga Negara: ${arrest.nationality}
+                    Asal: ${arrest.origin} (${translateOriginType(arrest.originType)})
+                    Deskripsi Asal: ${arrest.originDescription || '-'}
+                    Tujuan: ${arrest.destination}
+                    Deskripsi Tujuan: ${arrest.destinationDescription || '-'}
+                    Lokasi Penangkapan: ${arrest.arrestLocation}
+                    Deskripsi Lokasi: ${arrest.arrestLocationDescription || '-'}
+                    Sumber Berita: ${arrest.newsLink}
+                `;
+                
+                slide.addText(details, {
+                    x: 0.5, y: 1.2, w: "40%", h: 3,
+                    fontSize: 14
+                });
+                
+                // Tambahkan diagram rute sederhana
+                slide.addText("Diagram Rute:", {
+                    x: 5, y: 1.2, w: "40%", h: 0.5,
+                    fontSize: 16, bold: true
+                });
+                
+                slide.addText(
+                    `${arrest.origin} → ${arrest.destination} → ${arrest.arrestLocation}`,
+                    { x: 5, y: 1.8, w: "40%", h: 1, fontSize: 14 }
+                );
+            });
+            
+            // Simpan presentasi
+            pptx.writeFile("Analisis_Rute_Narkotika.pptx");
+        }
+        
+        // =============================================
+        // FUNGSI BARU UNTUK EKSPOR/IMPOR JSON
+        // =============================================
+        
+        function exportToJSON() {
+            const dataStr = JSON.stringify(arrestsDatabase, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "backup_arrests_database_" + new Date().toISOString().slice(0,10) + ".json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function handleJSONImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data)) {
+                        if (confirm("Apakah Anda yakin ingin mengimpor data ini? Data saat ini akan diganti.")) {
+                            arrestsDatabase = data;
+                            saveDatabase();
+                            updateArrestsTable();
+                            updateStatistics();
+                            updateDatabaseGroups();
+                            updateMap();
+                            drawNetwork();
+                            alert("Data berhasil diimpor!");
+                        }
+                    } else {
+                        alert("Format file tidak valid. Harus berupa array.");
+                    }
+                } catch (err) {
+                    console.error("Error parsing JSON:", err);
+                    alert("Gagal membaca file JSON. Format tidak valid.");
+                }
+            };
+            reader.readAsText(file);
+            
+            // Reset input file untuk mengizinkan impor file yang sama lagi
+            event.target.value = '';
+        }
+        
+        // Fungsi bantu untuk menerjemahkan jenis narkotika
+        function translateDrugType(type) {
+            const translations = {
+                'cocaine': 'Kokain',
+                'heroin': 'Heroin',
+                'methamphetamine': 'Metamfetamin',
+                'marijuana': 'Ganja',
+                'fentanyl': 'Fentanil',
+                'other': 'Lainnya'
+            };
+            return translations[type] || type;
+        }
+        
+        // Fungsi bantu untuk menerjemahkan modus pengiriman
+        function translateModus(modus) {
+            const translations = {
+                'udara': 'Udara (Pesawat)',
+                'laut': 'Laut (Kapal)',
+                'darat': 'Darat (Truk, Mobil)',
+                'pos': 'Pos/Paket',
+                'penumpang': 'Penumpang (Body Carrier)',
+                'other': 'Lainnya'
+            };
+            return translations[modus] || modus;
+        }
+        
+        // Fungsi bantu untuk menerjemahkan jenis asal
+        function translateOriginType(type) {
+            const translations = {
+                'country': 'Negara',
+                'region': 'Daerah',
+                'address': 'Alamat',
+                'airport': 'Bandara',
+                'port': 'Pelabuhan'
+            };
+            return translations[type] || type;
+        }
+        
+        // Fungsi bantu untuk mengubah visibilitas kelompok
+        function toggleGroup(groupElement) {
+            groupElement.classList.toggle('collapsed');
+        }
+        
+        // Fungsi bantu untuk mengubah sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const icon = document.getElementById('sidebar-icon');
+            
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            
+            if (sidebar.classList.contains('collapsed')) {
+                icon.classList.remove('fa-chevron-left');
+                icon.classList.add('fa-chevron-right');
+            } else {
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-left');
+            }
+        }
+        
+        // Fungsi bantu untuk mengkapitalisasi huruf pertama
+        function capitalizeFirstLetter(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
+        
+        // Fungsi navigasi tab
+        function openTab(tabId) {
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+            
+            const tabButtons = document.getElementsByClassName('tab-btn');
+            for (let i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove('active');
+            }
+            
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            // Perbarui visualisasi saat beralih ke tab database
+            if (tabId === 'database-tab') {
+                updateDatabaseGroups();
+            }
+        }
+        
+        // Inisialisasi aplikasi
+        window.onload = async function() {
+            updateArrestsTable();
+            await updateMap();
+            drawNetwork();
+            updateDatabaseGroups();
+            updateStatistics();
+            updateModusDescription();
+        };
+    </script>
+</body>
+</html>
